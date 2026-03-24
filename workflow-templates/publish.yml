@@ -34,8 +34,14 @@ jobs:
 
       - name: publish
         env:
-          SECRET: ${{ secrets.MOONCAKES_MOONBITLANG_TOKEN }}
+          SECRET: ${{ secrets.MOONCAKES_MOONBIT_COMMUNITY_TOKEN }}
+        shell: bash
         run: |
+          if [ -z "$SECRET" ]; then
+            echo "Error: MOONCAKES_MOONBIT_COMMUNITY_TOKEN secret is not set."
+            echo "Please contact an admin to grant access to this secret."
+            exit 1
+          fi
           echo "$SECRET" > ~/.moon/credentials.json
           moon publish
           rm ~/.moon/credentials.json
