@@ -2,11 +2,19 @@ name: publish-package
 
 on:
   workflow_dispatch:
+    inputs:
+      module_directory:
+        description: Directory containing the module to publish
+        required: true
+        default: "."
+        type: string
 
 jobs:
   publish:
     # Use macos-latest or windows-latest if you want to publish to those platforms
     runs-on: ubuntu-latest
+    env:
+      MODULE_DIRECTORY: ${{ inputs.module_directory }}
     permissions:
       contents: write
     steps:
@@ -22,15 +30,20 @@ jobs:
       - name: post install
         run: |
           moon version --all
-          moon update
+          moon -C "$MODULE_DIRECTORY" update
 
-      # Add -C if your moon.mod or moon.pkg is not in the root directory
       - name: prepublish check
         run: |
-          moon fmt
+          moon -C "$MODULE_DIRECTORY" fmt
           git diff --exit-code
-          moon check
-          moon test
+          moon -C "$MODULE_DIRECTORY" check
+          moon -C "$MODULE_DIRECTORY" test
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' "$MODULE_DIRECTORY/moon.mod")"
+          if [[ -z "$version" ]]; then
+            echo "could not read package version from $MODULE_DIRECTORY/moon.mod" >&2
+            exit 1
+          fi
+          echo "PUBLISHED_TAG=v$version" >> "$GITHUB_ENV"
 
       - name: publish
         env:
@@ -43,7 +56,7 @@ jobs:
             exit 1
           fi
           echo "$SECRET" > ~/.moon/credentials.json
-          moon publish
+          moon -C "$MODULE_DIRECTORY" publish
           rm ~/.moon/credentials.json
 
       - name: tag published commit
@@ -51,7 +64,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          tag="v$(sed -n 's/^version = "\(.*\)"/\1/p' moon.mod)"
           gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
-            -f ref="refs/tags/$tag" \
+            -f ref="refs/tags/$PUBLISHED_TAG" \
             -f sha="$GITHUB_SHA"
