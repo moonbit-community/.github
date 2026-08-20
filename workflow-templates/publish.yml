@@ -2,19 +2,12 @@ name: publish-package
 
 on:
   workflow_dispatch:
-    inputs:
-      module_directory:
-        description: Directory containing the module to publish
-        required: true
-        default: "."
-        type: string
 
 jobs:
   publish:
+    # This template publishes the MoonBit module at the repository root.
     # Use macos-latest or windows-latest if you want to publish to those platforms
     runs-on: ubuntu-latest
-    env:
-      MODULE_DIRECTORY: ${{ inputs.module_directory }}
     permissions:
       contents: write
     steps:
@@ -30,17 +23,17 @@ jobs:
       - name: post install
         run: |
           moon version --all
-          moon -C "$MODULE_DIRECTORY" update
+          moon update
 
       - name: prepublish check
         run: |
-          moon -C "$MODULE_DIRECTORY" fmt
+          moon fmt
           git diff --exit-code
-          moon -C "$MODULE_DIRECTORY" check
-          moon -C "$MODULE_DIRECTORY" test
-          version="$(sed -n 's/^version = "\(.*\)"/\1/p' "$MODULE_DIRECTORY/moon.mod")"
+          moon check
+          moon test
+          version="$(sed -n 's/^version = "\(.*\)"/\1/p' moon.mod)"
           if [[ -z "$version" ]]; then
-            echo "could not read package version from $MODULE_DIRECTORY/moon.mod" >&2
+            echo "could not read package version from moon.mod" >&2
             exit 1
           fi
           echo "PUBLISHED_TAG=v$version" >> "$GITHUB_ENV"
@@ -56,7 +49,7 @@ jobs:
             exit 1
           fi
           echo "$SECRET" > ~/.moon/credentials.json
-          moon -C "$MODULE_DIRECTORY" publish
+          moon publish
           rm ~/.moon/credentials.json
 
       - name: tag published commit
