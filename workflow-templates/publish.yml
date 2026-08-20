@@ -8,7 +8,7 @@ jobs:
     # Use macos-latest or windows-latest if you want to publish to those platforms
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -17,16 +17,18 @@ jobs:
       - name: install-ubuntu
         run: |
           curl -fsSL https://cli.moonbitlang.com/install/unix.sh | bash
-          echo "$HOME/.moon/bin" >> $GITHUB_PATH
+          echo "$HOME/.moon/bin" >> "$GITHUB_PATH"
 
       - name: post install
         run: |
           moon version --all
           moon update
 
-      # Add -C if your moon.mod.json or moon.pkg.json is not in the root directory
+      # Add -C if your moon.mod or moon.pkg is not in the root directory
       - name: prepublish check
         run: |
+          moon fmt
+          git diff --exit-code
           moon check
           moon test
 
@@ -43,3 +45,13 @@ jobs:
           echo "$SECRET" > ~/.moon/credentials.json
           moon publish
           rm ~/.moon/credentials.json
+
+      - name: tag published commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tag="v$(sed -n 's/^version = "\(.*\)"/\1/p' moon.mod)"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/$tag" \
+            -f sha="$GITHUB_SHA"
