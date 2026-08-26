@@ -3,13 +3,17 @@ name: publish-package
 on:
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   publish:
     # This template publishes the MoonBit module at the repository root.
     # Use macos-latest or windows-latest if you want to publish to those platforms
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+    outputs:
+      published_tag: ${{ steps.prepublish.outputs.published_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,6 +30,7 @@ jobs:
           moon update
 
       - name: prepublish check
+        id: prepublish
         run: |
           moon fmt
           git diff --exit-code
@@ -36,7 +41,7 @@ jobs:
             echo "could not read package version from moon.mod" >&2
             exit 1
           fi
-          echo "PUBLISHED_TAG=v$version" >> "$GITHUB_ENV"
+          echo "published_tag=v$version" >> "$GITHUB_OUTPUT"
 
       - name: publish
         env:
@@ -52,9 +57,16 @@ jobs:
           moon publish
           rm ~/.moon/credentials.json
 
+  tag:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
       - name: tag published commit
         env:
           GH_TOKEN: ${{ github.token }}
+          PUBLISHED_TAG: ${{ needs.publish.outputs.published_tag }}
         shell: bash
         run: |
           gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
